@@ -1,27 +1,22 @@
-const mongoose = require("mongoose");
+const { createSupabaseModel } = require("../lib/supabaseModel");
 
-const SubmissionSchema = new mongoose.Schema({
-    activityId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Activity",
-        required: true
+module.exports = createSupabaseModel({
+    name: "Submission",
+    table: "submissions",
+    defaults: {
+        score: null
     },
-    studentId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Student",
-        required: true
+    timestamps: true,
+    fields: {
+        activityId: "activity_id",
+        studentId: "student_id",
+        fileUrl: "file_url",
+        notes: "notes",
+        score: "score",
+        status: "status"
     },
-    fileUrl: String, 
-    notes: String,
-    score: {
-        type: Number,
-        default: null // Null means not graded yet
-    },
-    status: {
-        type: String,
-        enum: ["On-Time", "Late"],
-        required: true
+    relations: {
+        activityId: { model: () => require("./Activity"), localField: "activityId", many: false },
+        studentId: { model: () => require("./Student"), localField: "studentId", many: false }
     }
-}, { timestamps: true });
-
-module.exports = mongoose.model("Submission", SubmissionSchema);
+});

@@ -1,25 +1,19 @@
-const mongoose = require("mongoose");
+const { createSupabaseModel } = require("../lib/supabaseModel");
 
-const AttendanceSchema = new mongoose.Schema({
-    studentId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Student",
-        required: true
+module.exports = createSupabaseModel({
+    name: "Attendance",
+    table: "attendance",
+    defaults: {
+        status: "Present"
     },
-    sessionId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Session",
-        required: true
+    fields: {
+        studentId: "student_id",
+        sessionId: "session_id",
+        checkInTime: "check_in_time",
+        status: "status"
     },
-    checkInTime: {
-        type: Date,
-        default: Date.now
-    },
-    status: {
-        type: String,
-        enum: ["Present", "Absent", "Late"],
-        default: "Present"
+    relations: {
+        studentId: { model: () => require("./Student"), localField: "studentId", many: false },
+        sessionId: { model: () => require("./Session"), localField: "sessionId", many: false }
     }
 });
-
-module.exports = mongoose.model("Attendance", AttendanceSchema);

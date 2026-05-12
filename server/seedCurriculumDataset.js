@@ -1,5 +1,6 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
+const connectOptionalMongo = require('./config/connectOptionalMongo');
 const bcrypt = require('bcryptjs');
 
 const Student = require('./models/Student');
@@ -139,8 +140,10 @@ function randDate(daysAgo) {
 }
 
 async function seed() {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/attendanceDB');
-    console.log('✅ Connected to MongoDB\n');
+    await connectOptionalMongo(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/attendanceDB');
+    if (process.env.USE_SUPABASE !== 'true') {
+        console.log('✅ Connected to MongoDB\n');
+    }
 
     // Clear curriculum only (keep existing students/teachers)
     await Curriculum.deleteMany({});

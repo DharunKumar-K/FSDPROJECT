@@ -1,34 +1,26 @@
-const mongoose = require("mongoose");
+const { createSupabaseModel } = require("../lib/supabaseModel");
 
-const CourseSchema = new mongoose.Schema({
-    teacherId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Teacher",
-        required: true
+module.exports = createSupabaseModel({
+    name: "Course",
+    table: "courses",
+    defaults: {
+        institutionType: "college",
+        enrolledStudents: []
     },
-    title: {
-        type: String,
-        required: true
+    timestamps: true,
+    fields: {
+        teacherId: "teacher_id",
+        title: "title",
+        code: "code",
+        institutionType: "institution_type",
+        department: "department",
+        year: "year",
+        semester: "semester",
+        section: "section",
+        enrolledStudents: "enrolled_students"
     },
-    code: {
-        type: String, // e.g., CS101
-        required: true
-    },
-    institutionType: {
-        type: String,
-        default: "college"
-    },
-    // College specific
-    department: String,
-    year: String,
-    semester: String,
-    section: String, // e.g., "A", "B" — allows same subject with different class groups
-    
-    // Students enrolled in this course
-    enrolledStudents: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Student"
-    }]
-}, { timestamps: true });
-
-module.exports = mongoose.model("Course", CourseSchema);
+    relations: {
+        teacherId: { model: () => require("./Teacher"), localField: "teacherId", many: false },
+        enrolledStudents: { model: () => require("./Student"), localField: "enrolledStudents", many: true }
+    }
+});

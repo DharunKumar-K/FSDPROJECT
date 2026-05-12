@@ -2,12 +2,15 @@ const mongoose = require('mongoose');
 const Student = require('./models/Student');
 const csv = require('csv-parser');
 const fs = require('fs');
+const connectOptionalMongo = require('./config/connectOptionalMongo');
 require('dotenv').config();
 
 async function testBulkImport() {
     try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log('Connected to MongoDB\n');
+        await connectOptionalMongo(process.env.MONGODB_URI);
+        if (process.env.USE_SUPABASE !== 'true') {
+            console.log('Connected to MongoDB\n');
+        }
 
         const filePath = './students_50.csv';
         

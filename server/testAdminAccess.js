@@ -2,14 +2,17 @@ const mongoose = require('mongoose');
 const Admin = require('./models/Admin');
 const Student = require('./models/Student');
 const jwt = require('jsonwebtoken');
+const connectOptionalMongo = require('./config/connectOptionalMongo');
 require('dotenv').config();
 
 const SECRET = process.env.JWT_SECRET || 'supersecretkey';
 
 async function testAdminAccess() {
     try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log('Connected to MongoDB\n');
+        await connectOptionalMongo(process.env.MONGODB_URI);
+        if (process.env.USE_SUPABASE !== 'true') {
+            console.log('Connected to MongoDB\n');
+        }
 
         // Find admin
         const admin = await Admin.findOne({ adminId: 'admin' });

@@ -1,42 +1,22 @@
-const mongoose = require("mongoose");
+const { createSupabaseModel } = require("../lib/supabaseModel");
 
-const CurriculumSchema = new mongoose.Schema({
-    institutionType: {
-        type: String,
-        enum: ["school", "college"],
-        required: true
+module.exports = createSupabaseModel({
+    name: "Curriculum",
+    table: "curriculum",
+    timestamps: true,
+    fields: {
+        institutionType: "institution_type",
+        class: "class",
+        subject: "subject",
+        department: "department",
+        year: "year",
+        semester: "semester",
+        courseCode: "course_code",
+        courseName: "course_name",
+        units: "units",
+        teacher: "teacher_id"
     },
-    // School
-    class: String,
-    subject: String,
-    // College
-    department: String,
-    year: String,
-    semester: String,
-    courseCode: String,
-    courseName: String,
-    
-    // Common
-    units: [{
-        unit: Number,
-        progress: {
-            type: Number,
-            default: 0
-        },
-        title: String,
-        topics: [{
-            name: String,
-            completed: {
-                type: Boolean,
-                default: false
-            },
-            completedDate: Date
-        }]
-    }],
-    teacher: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Teacher"
+    relations: {
+        teacher: { model: () => require("./Teacher"), localField: "teacher", many: false }
     }
-}, { timestamps: true });
-
-module.exports = mongoose.model("Curriculum", CurriculumSchema);
+});

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const connectOptionalMongo = require('./config/connectOptionalMongo');
 const Student = require('./models/Student');
 const Teacher = require('./models/Teacher');
 const Course = require('./models/Course');
@@ -105,8 +106,10 @@ async function clearOldData() {
 
 async function seedData() {
     try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log('Connected to MongoDB');
+        await connectOptionalMongo(process.env.MONGODB_URI);
+        if (process.env.USE_SUPABASE !== 'true') {
+            console.log('Connected to MongoDB');
+        }
 
         await clearOldData();
 

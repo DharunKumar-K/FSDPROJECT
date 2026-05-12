@@ -8,6 +8,7 @@ const Attendance = require('./models/Attendance');
 const Submission = require('./models/Submission');
 const fs = require('fs');
 const path = require('path');
+const connectOptionalMongo = require('./config/connectOptionalMongo');
 require('dotenv').config();
 
 function arrayToCSV(data, headers) {
@@ -29,8 +30,10 @@ function arrayToCSV(data, headers) {
 
 async function exportAllData() {
     try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log('Connected to MongoDB\n');
+        await connectOptionalMongo(process.env.MONGODB_URI);
+        if (process.env.USE_SUPABASE !== 'true') {
+            console.log('Connected to MongoDB\n');
+        }
         console.log('📊 EXPORTING DATA TO CSV...\n');
 
         // 1. Export Students

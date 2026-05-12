@@ -2,14 +2,17 @@ const mongoose = require('mongoose');
 const Teacher = require('./models/Teacher');
 const Student = require('./models/Student');
 const Course = require('./models/Course');
+const connectOptionalMongo = require('./config/connectOptionalMongo');
 require('dotenv').config();
 
 async function quickDiagnostic() {
     try {
         console.log('🔍 QUICK DIAGNOSTIC CHECK\n');
         console.log('Connecting to MongoDB...');
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log('✓ Connected\n');
+        await connectOptionalMongo(process.env.MONGODB_URI);
+        if (process.env.USE_SUPABASE !== 'true') {
+            console.log('✓ Connected\n');
+        }
 
         // Check Teacher 81
         const teacher = await Teacher.findOne({ teacherId: '81' });

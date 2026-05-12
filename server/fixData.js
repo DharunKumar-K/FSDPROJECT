@@ -1,5 +1,6 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
+const connectOptionalMongo = require('./config/connectOptionalMongo');
 const Curriculum = require('./models/Curriculum');
 const Attendance = require('./models/Attendance');
 const Session    = require('./models/Session');
@@ -12,8 +13,10 @@ const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 const randDate = (s, e) => new Date(s.getTime() + Math.random() * (e.getTime() - s.getTime()));
 
 async function fix() {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('Connected\n');
+    await connectOptionalMongo(process.env.MONGODB_URI);
+    if (process.env.USE_SUPABASE !== 'true') {
+        console.log('Connected\n');
+    }
 
     // ── 1. FIX CURRICULUM ────────────────────────────────────────────────────
     console.log('Fixing curriculum data...');

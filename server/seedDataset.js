@@ -1,6 +1,7 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const connectOptionalMongo = require('./config/connectOptionalMongo');
 
 const Student    = require('./models/Student');
 const Teacher    = require('./models/Teacher');
@@ -13,8 +14,10 @@ const Submission = require('./models/Submission');
 const Curriculum = require('./models/Curriculum');
 
 async function seed() {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('Connected to MongoDB\n');
+    await connectOptionalMongo(process.env.MONGODB_URI);
+    if (process.env.USE_SUPABASE !== 'true') {
+        console.log('Connected to MongoDB\n');
+    }
 
     // ── CLEAR ALL ─────────────────────────────────────────────────────────────
     console.log('Deleting all old data...');

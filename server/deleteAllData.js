@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const connectOptionalMongo = require('./config/connectOptionalMongo');
 const Student = require('./models/Student');
 const Teacher = require('./models/Teacher');
 const Admin = require('./models/Admin');
@@ -11,8 +12,10 @@ require('dotenv').config();
 
 async function deleteAllData() {
     try {
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log('Connected to MongoDB\n');
+        await connectOptionalMongo(process.env.MONGODB_URI);
+        if (process.env.USE_SUPABASE !== 'true') {
+            console.log('Connected to MongoDB\n');
+        }
 
         console.log('🗑️  DELETING ALL DATA...\n');
 

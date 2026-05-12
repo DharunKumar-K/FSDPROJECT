@@ -1,29 +1,22 @@
-const mongoose = require("mongoose");
+const { createSupabaseModel } = require("../lib/supabaseModel");
 
-const ActivitySchema = new mongoose.Schema({
-    courseId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Course",
-        required: true
+module.exports = createSupabaseModel({
+    name: "Activity",
+    table: "activities",
+    defaults: {
+        type: "Assignment",
+        maxScore: 100
     },
-    title: {
-        type: String,
-        required: true
+    fields: {
+        courseId: "course_id",
+        studentId: "student_id",
+        title: "title",
+        description: "description",
+        type: "type",
+        deadline: "deadline",
+        maxScore: "max_score"
     },
-    description: String,
-    type: {
-        type: String,
-        enum: ["Assignment", "Lab", "Presentation", "Mini Project", "Group Discussion", "Case Study"],
-        default: "Assignment"
-    },
-    deadline: {
-        type: Date,
-        required: true
-    },
-    maxScore: {
-        type: Number,
-        default: 100
+    relations: {
+        courseId: { model: () => require("./Course"), localField: "courseId", many: false }
     }
 });
-
-module.exports = mongoose.model("Activity", ActivitySchema);

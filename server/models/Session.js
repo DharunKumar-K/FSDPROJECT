@@ -1,31 +1,21 @@
-const mongoose = require("mongoose");
+const { createSupabaseModel } = require("../lib/supabaseModel");
 
-const SessionSchema = new mongoose.Schema({
-    courseId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Course",
-        required: true
+module.exports = createSupabaseModel({
+    name: "Session",
+    table: "sessions",
+    defaults: {
+        isActive: true
     },
-    date: {
-        type: Date,
-        default: Date.now
+    timestamps: true,
+    fields: {
+        courseId: "course_id",
+        date: "date",
+        topic: "topic",
+        sessionCode: "session_code",
+        qrCodeString: "qr_code_string",
+        isActive: "is_active"
     },
-    topic: {
-        type: String,
-        required: true
-    },
-    sessionCode: {
-        type: String, // Generated code for students to enter
-        required: true,
-        unique: true
-    },
-    qrCodeString: {
-        type: String, // Data for generating QR code on frontend
-    },
-    isActive: {
-        type: Boolean,
-        default: true
+    relations: {
+        courseId: { model: () => require("./Course"), localField: "courseId", many: false }
     }
-}, { timestamps: true });
-
-module.exports = mongoose.model("Session", SessionSchema);
+});

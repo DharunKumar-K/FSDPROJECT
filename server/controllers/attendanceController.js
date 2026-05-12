@@ -157,6 +157,40 @@ exports.getMyAttendance = async (req, res) => {
             return res.status(200).json(result);
         }
 
+        if (req.user.role === 'admin') {
+            const sessions = await Session.find({})
+                .populate('courseId', 'title code department year semester')
+                .sort({ createdAt: -1 });
+            const result = [];
+            for (const session of sessions) {
+                const records = await Attendance.find({ sessionId: session._id })
+                    .populate('studentId', 'name registerNo department');
+                const total = records.length;
+                const present = records.filter(r => r.status === 'Present').length;
+                const absent = records.filter(r => r.status === 'Absent').length;
+                const late = records.filter(r => r.status === 'Late').length;
+                result.push({
+                    _id: session._id,
+                    date: session.createdAt,
+                    topic: session.topic,
+                    sessionCode: session.sessionCode,
+                    courseCode: session.courseId?.code,
+                    courseTitle: session.courseId?.title,
+                    department: session.courseId?.department,
+                    year: session.courseId?.year,
+                    semester: session.courseId?.semester,
+                    total, present, absent, late,
+                    percentage: total > 0 ? Math.round((present / total) * 100) : 0,
+                    students: records.map(r => ({
+                        name: r.studentId?.name,
+                        registerNo: r.studentId?.registerNo,
+                        status: r.status
+                    }))
+                });
+            }
+            return res.status(200).json(result);
+        }
+
         res.status(403).json({ error: 'Unauthorized' });
     } catch (err) {
         res.status(500).json({ error: err.message });

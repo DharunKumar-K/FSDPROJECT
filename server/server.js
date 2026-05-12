@@ -2,7 +2,6 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
-const connectDB = require("./config/db");
 
 const app = express();
 
@@ -17,9 +16,11 @@ app.use(cors({
     origin: (origin, callback) => {
         // Allow requests with no origin (mobile apps, curl, Postman, server-side)
         if (!origin) return callback(null, true);
-        // Allow any localhost origin in development
-        if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) {
-            return callback(null, true);
+        // Allow localhost only in development
+        if (process.env.NODE_ENV !== 'production') {
+            if (origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:")) {
+                return callback(null, true);
+            }
         }
         if (allowedOrigins.includes(origin)) return callback(null, true);
         callback(new Error("Not allowed by CORS: " + origin));
@@ -38,8 +39,6 @@ const activityRoutes = require("./routes/activityRoutes");
 const curriculumRoutes = require("./routes/curriculumRoutes");
 const intelligenceRoutes = require("./routes/intelligenceRoutes");
 const sessionRoutes = require("./routes/sessionRoutes");
-
-connectDB();
 
 app.get("/", (req,res)=>{
     res.send("Attendance Server V2 Running");

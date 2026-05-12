@@ -4,7 +4,17 @@ const Teacher = require("../models/Teacher");
 
 exports.createCurriculum = async (req, res) => {
     try {
-        const curriculum = new Curriculum(req.body);
+        const { institutionType, department, courseCode, courseName, units, year, semester, subject } = req.body;
+        if (!department || !courseCode || !courseName) {
+            return res.status(400).json({ error: "department, courseCode, and courseName are required" });
+        }
+        const curriculum = new Curriculum({
+            institutionType: institutionType || "college",
+            department, courseCode, courseName,
+            units: units || [],
+            year, semester, subject,
+            teacher: req.user.id
+        });
         await curriculum.save();
         res.status(201).json(curriculum);
     } catch (err) {
@@ -69,10 +79,20 @@ exports.getStudentCurriculum = async (req, res) => {
 exports.updateCurriculumUnit = async (req, res) => {
     try {
         const { curriculumId, unit, progress } = req.body;
-        const updateQuery = { _id: curriculumId, "units.unit": unit };
-        const updateData = { $set: { "units.$.progress": progress } };
-        const curriculum = await Curriculum.findOneAndUpdate(updateQuery, updateData, { new: true });
-        if (!curriculum) return res.status(404).json({ error: "Curriculum or Unit not found" });
+        if (!curriculumId || unit === undefined || progress === undefined) {
+            return res.status(400).json({ error: "curriculumId, unit, and progress are required" });
+        }
+        const existing = await Curriculum.findById(curriculumId);
+        if (!existing) return res.status(404).json({ error: "Curriculum not found" });
+        if (existing.teacher && existing.teacher.toString() !== req.user.id) {
+            return res.status(403).json({ error: "You do not own this curriculum" });
+        }
+        const curriculum = await Curriculum.findOneAndUpdate(
+            { _id: curriculumId, "units.unit": unit },
+            { $set: { "units.$.progress": progress } },
+            { new: true }
+        );
+        if (!curriculum) return res.status(404).json({ error: "Unit not found" });
         res.status(200).json(curriculum);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -100,6 +120,10 @@ exports.addCurriculumUnit = async (req, res) => {
                 teacher: teacher._id,
                 units: []
             });
+        }
+
+        if (curriculum && curriculum.teacher && curriculum.teacher.toString() !== req.user.id) {
+            return res.status(403).json({ error: "You do not own this curriculum" });
         }
 
         let formattedTopics = [];

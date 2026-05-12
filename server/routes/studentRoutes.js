@@ -19,7 +19,14 @@ const upload = multer({
     storage: storage,
     fileFilter: function (req, file, cb) {
         const ext = path.extname(file.originalname).toLowerCase();
-        if (ext !== '.csv' && ext !== '.xlsx' && ext !== '.xls') {
+        const allowedExts = ['.csv', '.xlsx', '.xls'];
+        const allowedMimes = [
+            'text/csv',
+            'application/csv',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        ];
+        if (!allowedExts.includes(ext) || !allowedMimes.includes(file.mimetype)) {
             return cb(new Error('Only CSV and Excel files are allowed'));
         }
         cb(null, true);
@@ -31,7 +38,6 @@ router.post("/register", studentController.registerStudent);
 router.post("/login", studentController.loginStudent);
 router.get("/student/:registerNo", auth, studentController.getStudent);
 router.get("/students", auth, studentController.getAllStudents);
-router.delete("/student/:studentId", auth, studentController.deleteStudent);
 router.post("/bulk-import-students", auth, upload.single('file'), studentController.bulkImportStudents);
 
 module.exports = router;

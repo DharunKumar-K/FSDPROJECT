@@ -318,7 +318,12 @@ const buildRecord = (row, fields, aliases, timestamps, passwordField) => {
 
     for (const [jsField, dbField] of Object.entries(fields)) {
         if (dbField in normalizedRow) {
-            record[jsField] = cloneDeep(normalizedRow[dbField]);
+            let val = normalizedRow[dbField];
+            // Supabase may return jsonb columns as strings — parse them
+            if (typeof val === "string" && (val.startsWith("[") || val.startsWith("{"))) {
+                try { val = JSON.parse(val); } catch (_) {}
+            }
+            record[jsField] = cloneDeep(val);
         }
     }
 
@@ -376,70 +381,6 @@ const createSupabaseModel = (config) => {
         return normalized;
     };
 
-    const fetchRows = async () => {
-        const { data, error } = await supabase().from(table).select("*");
-        if (error) {
-            throw new Error(error.message);
-        }
-        return data || [];
-    };
-
-    const hydrate = (row) => {
-        const record = buildRecord(row, fieldMap, aliasMap, timestamps, passwordField);
-        Object.defineProperty(record, "constructorName", { value: name, enumerable: false, configurable: true });
-        return record;
-    };
-
-    const applyRelations = async (record, populateSpecs) => {
-        if (!populateSpecs || !populateSpecs.length) {
-            return record;
-        }
-
-        const populated = cloneDeep(record);
-
-        for (const spec of populateSpecs) {
-            const relation = relations[spec.path];
-            if (!relation) continue;
-
-            const relationModel = relation.model();
-            const localField = relation.localField || spec.path;
-            const rawValue = getByPath(populated, localField);
-            if (rawValue === undefined || rawValue === null) {
-                if (relation.many) {
-                    setByPath(populated, spec.path, []);
-                } else {
-                    setByPath(populated, spec.path, null);
-                }
-                continue;
-            }
-
-            if (relation.many) {
-                const ids = Array.isArray(rawValue) ? rawValue : [rawValue];
-                let relatedQuery = relationModel.find({ _id: { $in: ids } });
-                if (spec.match) relatedQuery = relatedQuery.find ? relatedQuery : relatedQuery;
-                if (spec.select) relatedQuery = relatedQuery.select(spec.select);
-                if (spec.populate) relatedQuery = relatedQuery.populate(spec.populate);
-                let relatedDocs = await relatedQuery;
-                if (!Array.isArray(relatedDocs)) relatedDocs = relatedDocs ? [relatedDocs] : [];
-                if (spec.match) {
-                    relatedDocs = relatedDocs.filter((doc) => matchesQuery(doc, spec.match));
-                }
-                setByPath(populated, spec.path, relatedDocs);
-            } else {
-                let relatedQuery = relationModel.findOne({ _id: rawValue });
-                if (spec.match) {
-                    relatedQuery = relationModel.findOne({ _id: rawValue, ...spec.match });
-                }
-                if (spec.select) relatedQuery = relatedQuery.select(spec.select);
-                if (spec.populate) relatedQuery = relatedQuery.populate(spec.populate);
-                const relatedDoc = await relatedQuery;
-                setByPath(populated, spec.path, relatedDoc || null);
-            }
-        }
-
-        return populated;
-    };
-
     class SupabaseQuery {
         constructor(model, query = {}, projection = null, single = false) {
             this.model = model;
@@ -476,18 +417,14 @@ const createSupabaseModel = (config) => {
         }
 
         async exec() {
-            const rows = await fetchRows();
+            const rows = await fetchRows(this.query);
             let records = rows.map((row) => hydrate(row)).filter((record) => matchesQuery(record, this.query));
             records = applySort(records, this.sortSpec);
             if (typeof this.limitCount === "number") {
                 records = records.slice(0, this.limitCount);
             }
             if (this.populateSpecs.length) {
-                const populatedRecords = [];
-                for (const record of records) {
-                    populatedRecords.push(await applyRelations(record, this.populateSpecs));
-                }
-                records = populatedRecords;
+                records = await applyRelations(records, this.populateSpecs);
             }
             if (this.projection) {
                 records = records.map((record) => applySelect(record, this.projection));
@@ -532,6 +469,7 @@ const createSupabaseModel = (config) => {
             if (!passwordField) {
                 throw new Error(`${name} does not support password comparison`);
             }
+            if (!this[passwordField]) return false;
             return bcrypt.compare(candidatePassword, this[passwordField]);
         }
 
@@ -604,15 +542,22 @@ const createSupabaseModel = (config) => {
         }
 
         static async countDocuments(query = {}) {
-            const rows = await fetchRows();
+            const rows = await fetchRows(normalizeInput(query));
             return rows
                 .map((row) => hydrate(row))
                 .filter((record) => matchesQuery(record, normalizeInput(query)))
                 .length;
         }
 
+        static async findByIdAndDelete(id) {
+            const idStr = toStringValue(id);
+            const { data, error } = await supabase().from(table).delete().eq("id", idStr).select("*").single();
+            if (error) return null;
+            return data ? hydrate(data) : null;
+        }
+
         static async deleteMany(query = {}) {
-            const rows = await fetchRows();
+            const rows = await fetchRows(normalizeInput(query));
             const matches = rows
                 .map((row) => hydrate(row))
                 .filter((record) => matchesQuery(record, normalizeInput(query)));
@@ -633,7 +578,7 @@ const createSupabaseModel = (config) => {
         }
 
         static async findOneAndUpdate(filter = {}, update = {}, options = {}) {
-            const rows = await fetchRows();
+            const rows = await fetchRows(normalizeInput(filter));
             const normalizedFilter = normalizeInput(filter);
             const row = rows.find((entry) => matchesQuery(hydrate(entry), normalizedFilter));
             if (!row) {
@@ -654,6 +599,119 @@ const createSupabaseModel = (config) => {
             return true;
         }
     }
+
+    const hydrate = (row) => {
+        const recordData = buildRecord(row, fieldMap, aliasMap, timestamps, passwordField);
+        const record = new SupabaseRecord(recordData);
+        record.__isPersisted = true;
+        if (passwordField && record[passwordField] !== undefined) {
+            record.__originalPassword = record[passwordField];
+        }
+        Object.defineProperty(record, "constructorName", { value: name, enumerable: false, configurable: true });
+        return record;
+    };
+
+    const applyRelations = async (records, populateSpecs) => {
+        if (!populateSpecs || !populateSpecs.length) return records;
+
+        const isArray = Array.isArray(records);
+        const list = isArray ? records : [records];
+
+        for (const spec of populateSpecs) {
+            const relation = relations[spec.path];
+            if (!relation) continue;
+
+            const relationModel = relation.model();
+            const localField = relation.localField || spec.path;
+
+            if (relation.many) {
+                // Collect all IDs across all records, batch-fetch once
+                const allIds = [];
+                for (const rec of list) {
+                    const raw = getByPath(rec, localField);
+                    if (raw == null) continue;
+                    const ids = Array.isArray(raw) ? raw : [raw];
+                    ids.forEach(id => allIds.push(toStringValue(id)));
+                }
+                const uniqueIds = [...new Set(allIds)];
+                let relatedQuery = relationModel.find({ _id: { $in: uniqueIds } });
+                if (spec.select) relatedQuery = relatedQuery.select(spec.select);
+                if (spec.populate) relatedQuery = relatedQuery.populate(spec.populate);
+                let relatedDocs = await relatedQuery;
+                if (!Array.isArray(relatedDocs)) relatedDocs = relatedDocs ? [relatedDocs] : [];
+                const byId = new Map(relatedDocs.map(d => [toStringValue(d._id), d]));
+
+                for (const rec of list) {
+                    const raw = getByPath(rec, localField);
+                    if (raw == null) { setByPath(rec, spec.path, []); continue; }
+                    const ids = Array.isArray(raw) ? raw : [raw];
+                    let docs = ids.map(id => byId.get(toStringValue(id))).filter(Boolean);
+                    if (spec.match) docs = docs.filter(d => matchesQuery(d, spec.match));
+                    setByPath(rec, spec.path, docs);
+                }
+            } else {
+                // Collect all unique IDs, batch-fetch once
+                const allIds = [];
+                for (const rec of list) {
+                    const raw = getByPath(rec, localField);
+                    if (raw != null) allIds.push(toStringValue(raw));
+                }
+                const uniqueIds = [...new Set(allIds)];
+                if (!uniqueIds.length) {
+                    list.forEach(rec => setByPath(rec, spec.path, null));
+                    continue;
+                }
+                let relatedQuery = relationModel.find({ _id: { $in: uniqueIds } });
+                if (spec.select) relatedQuery = relatedQuery.select(spec.select);
+                if (spec.populate) relatedQuery = relatedQuery.populate(spec.populate);
+                let relatedDocs = await relatedQuery;
+                if (!Array.isArray(relatedDocs)) relatedDocs = relatedDocs ? [relatedDocs] : [];
+                const byId = new Map(relatedDocs.map(d => [toStringValue(d._id), d]));
+
+                for (const rec of list) {
+                    const raw = getByPath(rec, localField);
+                    if (raw == null) { setByPath(rec, spec.path, null); continue; }
+                    const match = byId.get(toStringValue(raw)) || null;
+                    setByPath(rec, spec.path, match);
+                }
+            }
+        }
+
+        return isArray ? list : list[0];
+    };
+
+    const buildSupabaseFilter = (query, builder) => {
+        const normalized = normalizeInput(query);
+        for (const [key, expected] of Object.entries(normalized)) {
+            if (key === "$or") continue;
+            const dbField = key === "_id" ? "id" : (fieldMap[key] || key);
+            if (isPlainObject(expected)) {
+                if ("$in" in expected) {
+                    const vals = expected.$in.map(v => toStringValue(v));
+                    builder = builder.in(dbField, vals);
+                } else if ("$ne" in expected) {
+                    builder = builder.neq(dbField, toStringValue(expected.$ne));
+                } else if ("$eq" in expected) {
+                    builder = builder.eq(dbField, toStringValue(expected.$eq));
+                }
+            } else if (Array.isArray(expected)) {
+                builder = builder.in(dbField, expected.map(v => toStringValue(v)));
+            } else if (expected !== undefined && expected !== null) {
+                builder = builder.eq(dbField, toStringValue(expected));
+            }
+        }
+        return builder;
+    };
+
+    const fetchRows = async (query = {}) => {
+        let builder = supabase().from(table).select("*");
+        builder = buildSupabaseFilter(query, builder);
+        const { data, error } = await builder;
+        if (error) {
+            throw new Error(error.message);
+        }
+        return data || [];
+    };
 
     return SupabaseRecord;
 };

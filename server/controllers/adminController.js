@@ -1,4 +1,6 @@
 const Admin = require("../models/Admin");
+const jwt = require('jsonwebtoken');
+const SECRET = require('../config/jwt');
 
 exports.registerAdmin = async (req, res) => {
     try {
@@ -18,15 +20,11 @@ exports.registerAdmin = async (req, res) => {
     }
 };
 
-const jwt = require('jsonwebtoken');
-const SECRET = require('../config/jwt');
-
 exports.loginAdmin = async (req, res) => {
     try {
         const { adminId, password } = req.body;
         const admin = await Admin.findOne({ adminId });
         if (admin && await admin.comparePassword(password)) {
-            // Issue JWT
             const token = jwt.sign({ id: admin._id, role: 'admin', adminId: admin.adminId }, SECRET, { expiresIn: '7d' });
             res.status(200).json({ token, user: admin });
         } else {

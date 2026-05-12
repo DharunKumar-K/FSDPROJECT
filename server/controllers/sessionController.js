@@ -14,6 +14,10 @@ exports.createSession = async (req, res) => {
         if (!course) {
             return res.status(403).json({ error: 'Course does not belong to you' });
         }
+        const duplicate = await Session.findOne({ sessionCode });
+        if (duplicate) {
+            return res.status(409).json({ error: 'Session code already in use' });
+        }
         const session = new Session({
             courseId,
             topic,

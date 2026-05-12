@@ -42,14 +42,12 @@ exports.enrollStudent = async (req, res) => {
         if (!courseId || !studentId) {
             return res.status(400).json({ error: 'courseId and studentId are required' });
         }
-        const teacher = await Teacher.findById(req.user.id);
-        // Course must belong to this teacher
         const course = await Course.findOne({ _id: courseId, teacherId: req.user.id });
         if (!course) {
             return res.status(403).json({ error: 'Course does not belong to you' });
         }
-        // Student must be from same department
         const Student = require('../models/Student');
+        const teacher = await Teacher.findById(req.user.id);
         const student = await Student.findById(studentId);
         if (!student || student.department !== teacher.department) {
             return res.status(403).json({ error: 'Student is not from your department' });

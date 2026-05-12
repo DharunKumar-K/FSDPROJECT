@@ -4,7 +4,12 @@ const router = express.Router();
 const teacherController = require("../controllers/teacherController");
 const auth = require("../middleware/auth");
 
-router.post("/teacher/register", teacherController.registerTeacher);
+router.post("/teacher/register", auth, (req, res, next) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Only admins can register teachers' });
+    }
+    teacherController.registerTeacher(req, res, next);
+});
 router.post("/teacher/login", teacherController.loginTeacher);
 router.post("/courses", auth, teacherController.createCourse);
 router.post("/courses/enroll", auth, teacherController.enrollStudent);

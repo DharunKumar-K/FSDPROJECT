@@ -1,10 +1,8 @@
 const Student = require("../models/Student");
 const jwt = require('jsonwebtoken');
 const SECRET = require('../config/jwt');
-const multer = require('multer');
 const csv = require('csv-parser');
 const fs = require('fs');
-const path = require('path');
 
 exports.registerStudent = async (req, res) => {
     try {
@@ -29,7 +27,6 @@ exports.loginStudent = async (req, res) => {
         const { registerNo, password } = req.body;
         const student = await Student.findOne({ registerNo });
         if (student && await student.comparePassword(password)) {
-            // Issue JWT
             const token = jwt.sign({ id: student._id, role: 'student', registerNo: student.registerNo }, SECRET, { expiresIn: '7d' });
             res.status(200).json({ token, user: student });
         } else {
@@ -99,50 +96,57 @@ exports.bulkImportStudents = async (req, res) => {
         let failedCount = 0;
         let rowNumber = 1;
 
-        // Read and parse CSV file
         const filePath = req.file.path;
 
-        await new Promise((resolve, reject) => {
-            fs.createReadStream(filePath)
-                .pipe(csv())
-                .on('data', (data) => results.push(data))
-                .on('end', resolve)
-                .on('error', reject);
-        });
+        try {
+            await new Promise((resolve, reject) => {
+                fs.createReadStream(filePath)
+                    .pipe(csv())
+                    .on('data', (data) => results.push(data))
+                    .on('end', resolve)
+                    .on('error', reject);
+            });
 
-        for (const row of results) {
-            rowNumber++;
-            try {
-                const { name, registerNo, email, password, department, year, semester } = row;
-                if (!name || !registerNo || !email || !password || !department || !year || !semester) {
-                    errors.push({ row: rowNumber, error: 'Missing required fields' });
+            for (const row of results) {
+                rowNumber++;
+                try {
+                    const { name, registerNo, email, password, department, year, semester } = row;
+                    if (!name || !registerNo || !email || !password || !department || !year || !semester) {
+                        errors.push({ row: rowNumber, error: 'Missing required fields' });
+                        failedCount++;
+                        continue;
+                    }
+                    if (password.length < 8) {
+                        errors.push({ row: rowNumber, error: 'Password must be at least 8 characters' });
+                        failedCount++;
+                        continue;
+                    }
+                    const exists = await Student.findOne({ $or: [{ registerNo }, { email }] });
+                    if (exists) {
+                        errors.push({ row: rowNumber, error: `Student with registerNo ${registerNo} or email ${email} already exists` });
+                        failedCount++;
+                        continue;
+                    }
+                    const student = new Student({
+                        name: name.trim(),
+                        registerNo: registerNo.trim(),
+                        email: email.trim(),
+                        password: password.trim(),
+                        department: department.trim(),
+                        year: year.trim(),
+                        semester: semester.trim()
+                    });
+                    await student.save();
+                    successCount++;
+                } catch (err) {
+                    errors.push({ row: rowNumber, error: err.message });
                     failedCount++;
-                    continue;
                 }
-                const exists = await Student.findOne({ $or: [{ registerNo }, { email }] });
-                if (exists) {
-                    errors.push({ row: rowNumber, error: `Student with registerNo ${registerNo} or email ${email} already exists` });
-                    failedCount++;
-                    continue;
-                }
-                const student = new Student({
-                    name: name.trim(),
-                    registerNo: registerNo.trim(),
-                    email: email.trim(),
-                    password: password.trim(),
-                    department: department.trim(),
-                    year: year.trim(),
-                    semester: semester.trim()
-                });
-                await student.save();
-                successCount++;
-            } catch (err) {
-                errors.push({ row: rowNumber, error: err.message });
-                failedCount++;
             }
+        } finally {
+            try { fs.unlinkSync(filePath); } catch (_) {}
         }
 
-        fs.unlinkSync(filePath);
         res.status(200).json({
             message: 'Bulk import completed',
             total: results.length,

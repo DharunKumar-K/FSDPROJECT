@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "buildCommand": "npm install --prefix ./frontend && npm run build --prefix ./frontend && npm install --prefix ./server",
+  "installCommand": "npm install",
+  "framework": null,
+  "public": "public",
+  "env": [
+    "MONGODB_URI",
+    "JWT_SECRET",
+    "NODE_ENV",
+    "CLIENT_URL"
+  ],
+  "functions": {
+    "server/server.js": {
+      "runtime": "nodejs18.x",
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "routes": [
+    {
+      "src": "^/api/(.*)",
+      "dest": "/server/server.js"
+    },
+    {
+      "src": "^/(?!api).*",
+      "dest": "/frontend/build/index.html"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "smart-attendance-system",
+  "version": "1.0.0",
+  "description": "Full-stack MERN attendance management system",
+  "private": true,
+  "scripts": {
+    "install:all": "npm install && npm install --prefix ./frontend && npm install --prefix ./server",
+    "dev": "concurrently \"npm run dev --prefix ./server\" \"npm start --prefix ./frontend\"",
+    "build": "npm run build --prefix ./frontend && npm install --prefix ./server",
+    "start": "node server/server.js",
+    "server": "node server/server.js",
+    "client": "npm start --prefix ./frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^7.6.0"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
